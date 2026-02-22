@@ -66,6 +66,9 @@ app.use("/api/upload",     uploadRoutes);
 app.use("/api/stripe",     stripeRoutes);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+app.get('/', (req, res) => {
+  res.send('ShopSwift Backend is running!');
+});
 app.use(errorHandler);
 
 // FIX: Removed the redundant "export default stripe" that was here.
