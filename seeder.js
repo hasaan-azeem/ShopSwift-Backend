@@ -4,30 +4,39 @@ import Admin from "./models/Admin.js";
 
 dotenv.config();
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.error(err));
+const MONGO_URI = process.env.MONGO_URI;
 
 const createAdmin = async () => {
   try {
-    // Pehle purana admin delete karo (agar double hash wala ho)
+    // Connect first, wait until fully connected
+    await mongoose.connect(MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("MongoDB connected");
+
+    // Delete old admins
     await Admin.deleteMany({});
     console.log("Old admins deleted");
 
-    // ✅ Password plain text do — model ka pre save hook hash kar dega
+    // Create new admin (plain password; model hashes it)
     await Admin.create({
       name: "Super Admin",
       email: "admin@example.com",
-      password: "admin123",  // ✅ plain text — model hash karega
+      password: "admin123",
     });
 
     console.log("✅ Admin created successfully!");
     console.log("Email: admin@example.com");
     console.log("Password: admin123");
-    process.exit();
+
   } catch (err) {
     console.error("Error:", err.message);
-    process.exit(1);
+  } finally {
+    // Close connection after operations
+    await mongoose.disconnect();
+    console.log("MongoDB disconnected");
+    process.exit();
   }
 };
 

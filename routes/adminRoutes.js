@@ -14,6 +14,19 @@ import Order from "../models/Order.js";
 
 const router = express.Router();
 
+router.post("/setup", async (req, res) => {
+  const existing = await Admin.findOne({ email: "admin@example.com" });
+  if (existing) return res.json({ message: "Admin already exists" });
+  
+  await Admin.create({
+    name: "Super Admin",
+    email: "admin@example.com",
+    password: "admin123",
+  });
+  
+  res.json({ message: "Admin created successfully" });
+});
+
 // ── Auth ──────────────────────────────
 router.post("/login", adminLogin);
 

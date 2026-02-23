@@ -76,6 +76,8 @@ export const getOrderById = asyncHandler(async (req, res) => {
   res.json(order);
 });
 
+console.log("req.user:", req.user);
+console.log("Headers:", req.headers.authorization);
 
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
