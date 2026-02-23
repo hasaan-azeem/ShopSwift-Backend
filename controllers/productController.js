@@ -2,7 +2,8 @@ import asyncHandler from "express-async-handler";
 import Product from "../models/Product.js";
 import mongoose from "mongoose";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL =
+  process.env.BACKEND_URL || "https://shopswift-backend-kykw.onrender.com";
 
 const toArr = (v) =>
   v
@@ -13,7 +14,24 @@ const toArr = (v) =>
           .map((s) => s.trim())
           .filter(Boolean)
     : [];
+
 const toBool = (v) => v === "true" || v === true;
+
+const calcDiscount = (price, oldPrice, discountFromForm) => {
+  if (
+    discountFromForm !== undefined &&
+    discountFromForm !== "" &&
+    Number(discountFromForm) > 0
+  ) {
+    return Number(discountFromForm);
+  }
+  const p = Number(price);
+  const op = Number(oldPrice);
+  if (op > p && p > 0) {
+    return Math.round(((op - p) / op) * 100);
+  }
+  return 0;
+};
 
 export const createProduct = asyncHandler(async (req, res) => {
   const {
@@ -48,22 +66,12 @@ export const createProduct = asyncHandler(async (req, res) => {
     ? [{ url: `${BACKEND_URL}/uploads/${req.file.filename}`, altText: name }]
     : [];
 
-  // Auto calculate discount from price and oldPrice if not provided
-  let finalDiscount = 0;
-  const p = Number(price);
-  const op = oldPrice ? Number(oldPrice) : 0;
-  if (discount !== undefined && discount !== "") {
-    finalDiscount = Number(discount);
-  } else if (op > p && p > 0) {
-    finalDiscount = Math.round(((op - p) / op) * 100);
-  }
-
   const product = await Product.create({
     name,
     description: description || "",
-    price: p,
-    oldPrice: op || undefined,
-    discount: finalDiscount,
+    price: Number(price),
+    oldPrice: oldPrice ? Number(oldPrice) : undefined,
+    discount: calcDiscount(price, oldPrice, discount),
     category: categoryId,
     image: imageArr,
     countInStock: Number(countInStock) || 0,
@@ -156,16 +164,10 @@ export const updateProduct = asyncHandler(async (req, res) => {
   if (material) product.material = material;
   if (gender) product.gender = gender;
 
-  // Auto calculate discount from price and oldPrice
-  const p = Number(price || product.price);
-  const op = Number(oldPrice || product.oldPrice || 0);
-  if (discount !== undefined && discount !== "") {
-    product.discount = Number(discount);
-  } else if (op > p && p > 0) {
-    product.discount = Math.round(((op - p) / op) * 100);
-  } else {
-    product.discount = 0;
-  }
+  // Calculate discount cleanly using current or updated price/oldPrice
+  const finalPrice = price ? Number(price) : product.price;
+  const finalOldPrice = oldPrice ? Number(oldPrice) : product.oldPrice || 0;
+  product.discount = calcDiscount(finalPrice, finalOldPrice, discount);
 
   if (req.file) {
     product.image = [
