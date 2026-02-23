@@ -1,17 +1,37 @@
 import asyncHandler from "express-async-handler";
-import Product from "../models/Product.js";   // filename as-is
+import Product from "../models/Product.js";
 import mongoose from "mongoose";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 
-const toArr  = (v) => v ? (Array.isArray(v) ? v : String(v).split(",").map(s => s.trim()).filter(Boolean)) : [];
+const toArr = (v) =>
+  v
+    ? Array.isArray(v)
+      ? v
+      : String(v)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+    : [];
 const toBool = (v) => v === "true" || v === true;
 
 export const createProduct = asyncHandler(async (req, res) => {
   const {
-    name, description, price, oldPrice, category,
-    countInStock, isFeatured, isNewArrival, isBestSeller,
-    sizes, colors, brand, material, gender,
+    name,
+    description,
+    price,
+    oldPrice,
+    discount,
+    category,
+    countInStock,
+    isFeatured,
+    isNewArrival,
+    isBestSeller,
+    sizes,
+    colors,
+    brand,
+    material,
+    gender,
   } = req.body;
 
   if (!name || !price) {
@@ -19,7 +39,6 @@ export const createProduct = asyncHandler(async (req, res) => {
     throw new Error("Name and price are required");
   }
 
-  // ✅ Category optional — only set if valid ObjectId
   let categoryId = undefined;
   if (category && mongoose.Types.ObjectId.isValid(category)) {
     categoryId = category;
@@ -29,22 +48,33 @@ export const createProduct = asyncHandler(async (req, res) => {
     ? [{ url: `${BACKEND_URL}/uploads/${req.file.filename}`, altText: name }]
     : [];
 
+  // Auto calculate discount from price and oldPrice if not provided
+  let finalDiscount = 0;
+  const p = Number(price);
+  const op = oldPrice ? Number(oldPrice) : 0;
+  if (discount !== undefined && discount !== "") {
+    finalDiscount = Number(discount);
+  } else if (op > p && p > 0) {
+    finalDiscount = Math.round(((op - p) / op) * 100);
+  }
+
   const product = await Product.create({
     name,
-    description:  description || "",
-    price:        Number(price),
-    oldPrice:     oldPrice ? Number(oldPrice) : undefined,
-    category:     categoryId,
-    image:        imageArr,
+    description: description || "",
+    price: p,
+    oldPrice: op || undefined,
+    discount: finalDiscount,
+    category: categoryId,
+    image: imageArr,
     countInStock: Number(countInStock) || 0,
-    isFeatured:   toBool(isFeatured),
+    isFeatured: toBool(isFeatured),
     isNewArrival: toBool(isNewArrival),
     isBestSeller: toBool(isBestSeller),
-    sizes:        toArr(sizes),
-    colors:       toArr(colors),
-    brand:        brand || "ShopSwift",
-    material:     material || "",
-    gender:       gender || "Unisex",
+    sizes: toArr(sizes),
+    colors: toArr(colors),
+    brand: brand || "ShopSwift",
+    material: material || "",
+    gender: gender || "Unisex",
   });
 
   res.status(201).json(product);
@@ -60,9 +90,9 @@ export const getProducts = asyncHandler(async (req, res) => {
   if (isBestSeller === "true") filter.isBestSeller = true;
 
   let query = Product.find(filter).populate("category", "name slug");
-  if (sort === "price-low")       query = query.sort({ price: 1 });
+  if (sort === "price-low") query = query.sort({ price: 1 });
   else if (sort === "price-high") query = query.sort({ price: -1 });
-  else                            query = query.sort({ createdAt: -1 });
+  else query = query.sort({ createdAt: -1 });
 
   const products = await query;
   res.json(products);
@@ -70,40 +100,80 @@ export const getProducts = asyncHandler(async (req, res) => {
 
 export const getProductById = asyncHandler(async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    res.status(400); throw new Error("Invalid product ID");
+    res.status(400);
+    throw new Error("Invalid product ID");
   }
-  const product = await Product.findById(req.params.id).populate("category", "name slug");
-  if (!product) { res.status(404); throw new Error("Product not found"); }
+  const product = await Product.findById(req.params.id).populate(
+    "category",
+    "name slug",
+  );
+  if (!product) {
+    res.status(404);
+    throw new Error("Product not found");
+  }
   res.json(product);
 });
 
 export const updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
-  if (!product) { res.status(404); throw new Error("Product not found"); }
+  if (!product) {
+    res.status(404);
+    throw new Error("Product not found");
+  }
 
   const {
-    name, description, price, oldPrice, category,
-    countInStock, isFeatured, isNewArrival, isBestSeller,
-    sizes, colors, brand, material, gender,
+    name,
+    description,
+    price,
+    oldPrice,
+    discount,
+    category,
+    countInStock,
+    isFeatured,
+    isNewArrival,
+    isBestSeller,
+    sizes,
+    colors,
+    brand,
+    material,
+    gender,
   } = req.body;
 
-  if (name)        product.name        = name;
+  if (name) product.name = name;
   if (description !== undefined) product.description = description;
-  if (price)       product.price       = Number(price);
-  if (oldPrice !== undefined) product.oldPrice = oldPrice ? Number(oldPrice) : undefined;
-  if (category && mongoose.Types.ObjectId.isValid(category)) product.category = category;
+  if (price) product.price = Number(price);
+  if (oldPrice !== undefined)
+    product.oldPrice = oldPrice ? Number(oldPrice) : undefined;
+  if (category && mongoose.Types.ObjectId.isValid(category))
+    product.category = category;
   if (countInStock !== undefined) product.countInStock = Number(countInStock);
-  if (isFeatured   !== undefined) product.isFeatured   = toBool(isFeatured);
+  if (isFeatured !== undefined) product.isFeatured = toBool(isFeatured);
   if (isNewArrival !== undefined) product.isNewArrival = toBool(isNewArrival);
   if (isBestSeller !== undefined) product.isBestSeller = toBool(isBestSeller);
-  if (sizes)    product.sizes    = toArr(sizes);
-  if (colors)   product.colors   = toArr(colors);
-  if (brand)    product.brand    = brand;
+  if (sizes) product.sizes = toArr(sizes);
+  if (colors) product.colors = toArr(colors);
+  if (brand) product.brand = brand;
   if (material) product.material = material;
-  if (gender)   product.gender   = gender;
+  if (gender) product.gender = gender;
+
+  // Auto calculate discount from price and oldPrice
+  const p = Number(price || product.price);
+  const op = Number(oldPrice || product.oldPrice || 0);
+  if (discount !== undefined && discount !== "") {
+    product.discount = Number(discount);
+  } else if (op > p && p > 0) {
+    product.discount = Math.round(((op - p) / op) * 100);
+  } else {
+    product.discount = 0;
+  }
 
   if (req.file) {
-    product.image = [{ url: `${BACKEND_URL}/uploads/${req.file.filename}`, altText: name || product.name }];
+    product.image = [
+      {
+        url: `${BACKEND_URL}/uploads/${req.file.filename}`,
+        altText: name || product.name,
+      },
+    ];
   }
 
   const updated = await product.save();
@@ -112,7 +182,10 @@ export const updateProduct = asyncHandler(async (req, res) => {
 
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
-  if (!product) { res.status(404); throw new Error("Product not found"); }
+  if (!product) {
+    res.status(404);
+    throw new Error("Product not found");
+  }
   await Product.findByIdAndDelete(req.params.id);
   res.json({ message: "Product deleted" });
 });
